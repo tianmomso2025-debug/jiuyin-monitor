@@ -4,14 +4,47 @@ import os
 
 URL = "https://9y.bfage.com/news/lists/2"
 
+WEBHOOK = os.environ["DISCORD_WEBHOOK"]
+
 html = requests.get(URL).text
 soup = BeautifulSoup(html, "html.parser")
 
-title = soup.title.text.strip()
+links = soup.find_all("a")
 
-requests.post(
-    os.environ["DISCORD_WEBHOOK"],
-    json={
-        "content": f"测试成功！\n网页标题：{title}\n{URL}"
-    }
-)
+latest = None
+
+for a in links:
+    text = a.get_text(strip=True)
+
+    if len(text) > 5:
+        latest = text
+        break
+
+if not latest:
+    raise Exception("找不到公告")
+
+STATE_FILE = "latest.txt"
+
+old = ""
+
+if os.path.exists(STATE_FILE):
+    with open(STATE_FILE, "r", encoding="utf-8") as f:
+        old = f.read().strip()
+
+if latest != old:
+
+    requests.post(
+        WEBHOOK,
+        json={
+            "content": f"📢 九阴官网新公告\n\n{latest}\n\n{URL}"
+        }
+    )
+
+    with open(STATE_FILE, "w", encoding="utf-8") as f:
+        f.write(latest)
+
+    os.system('git config user.name "github-actions"')
+    os.system('git config user.email "github-actions@github.com"')
+    os.system('git add latest.txt')
+    os.system(f'git commit -m "update latest title"')
+    os.system('git push')
